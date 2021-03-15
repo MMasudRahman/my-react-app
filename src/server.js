@@ -2,6 +2,8 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import { MongoClient } from 'mongodb';
 import path from 'path';
+import fs from 'fs';
+import https from 'https';
 
 [
     {
@@ -21,6 +23,14 @@ import path from 'path';
 
 const app = express();
 
+const port = 8000;
+
+const options = {
+    key: fs.readFileSync(path.join(__dirname, '/certs/server-key.pem'), 'utf8'),
+    cert: fs.readFileSync(path.join(__dirname, '/certs/server-cert.pem'), 'utf8'),
+};
+
+
 app.use(express.static(path.join(__dirname, '/build')));
 app.use(bodyParser.json());
 
@@ -37,6 +47,23 @@ const withDB = async (operations, res) => {
     }
 }
 
+
+     
+app.get('/api/articles', async (req, res) => {
+    withDB(async (db) => {
+    
+      await db.collection('articles').find().toArray((err, result) => {
+            if(err){  
+                res.status(404).json(result);  
+            }  
+            else{             
+             res.status(200).json(result);  
+                }  
+         });
+       
+    }, res);
+});
+
 app.get('/api/articles/:name', async (req, res) => {
     withDB(async (db) => {
         const articleName = req.params.name;
@@ -44,7 +71,7 @@ app.get('/api/articles/:name', async (req, res) => {
         const articleInfo = await db.collection('articles').findOne({ name: articleName })
         res.status(200).json(articleInfo);
     }, res);
-})
+});
 
 app.post('/api/articles/:name/upvote', async (req, res) => {
     withDB(async (db) => {
@@ -79,8 +106,14 @@ app.post('/api/articles/:name/add-comment', (req, res) => {
     }, res);
 });
 
+
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname + '/build/index.html'));
 });
 
-app.listen(8000, () => console.log('Listening on port 8000'));
+//app.listen(8000, () => console.log('Listening on port 8000'));
+
+
+const server = https.createServer(options, app).listen(port, function(){
+    console.log("Express server listening on port " + port);
+});
